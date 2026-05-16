@@ -28,8 +28,12 @@ type Dashboard struct {
 }
 
 func (d Dashboard) PanelMapToTerraform() (types.String, error) {
-	if d.PanelMap == nil {
-		return types.StringNull(), nil
+	// Normalize nil and empty map back to the empty string the setter accepts,
+	// so a HCL `panel_map = ""` round-trips cleanly through Create -> Read /
+	// Update -> Read without producing a phantom plan diff (the SigNoz API
+	// omits/nulls empty maps in its response).
+	if len(d.PanelMap) == 0 {
+		return types.StringValue(""), nil
 	}
 	panelMap, err := structure.FlattenJsonToString(d.PanelMap)
 	if err != nil {
@@ -40,6 +44,12 @@ func (d Dashboard) PanelMapToTerraform() (types.String, error) {
 }
 
 func (d Dashboard) VariablesToTerraform() (types.String, error) {
+	// See PanelMapToTerraform: round-trip empty maps as "" so the value the
+	// operator wrote in HCL matches what we hand back to terraform after the
+	// SigNoz API strips the field on store.
+	if len(d.Variables) == 0 {
+		return types.StringValue(""), nil
+	}
 	variables, err := structure.FlattenJsonToString(d.Variables)
 	if err != nil {
 		return types.StringValue(""), err
@@ -73,6 +83,10 @@ func (d Dashboard) WidgetsToTerraform() (types.String, error) {
 }
 
 func (d *Dashboard) SetVariables(tfVariables types.String) error {
+	if tfVariables.IsNull() || tfVariables.ValueString() == "" {
+		d.Variables = make(map[string]interface{})
+		return nil
+	}
 	variables, err := structure.ExpandJsonFromString(tfVariables.ValueString())
 	if err != nil {
 		return err
@@ -82,7 +96,7 @@ func (d *Dashboard) SetVariables(tfVariables types.String) error {
 }
 
 func (d *Dashboard) SetPanelMap(tfPanelMap types.String) error {
-	if tfPanelMap.ValueString() == "" {
+	if tfPanelMap.IsNull() || tfPanelMap.ValueString() == "" {
 		d.PanelMap = make(map[string]interface{})
 		return nil
 	}
@@ -102,6 +116,10 @@ func (d *Dashboard) SetTags(tfTags types.List) {
 }
 
 func (d *Dashboard) SetLayout(tfLayout types.String) error {
+	if tfLayout.IsNull() || tfLayout.ValueString() == "" {
+		d.Layout = []map[string]interface{}{}
+		return nil
+	}
 	var layout []map[string]interface{}
 	err := json.Unmarshal([]byte(tfLayout.ValueString()), &layout)
 	if err != nil {
@@ -112,6 +130,10 @@ func (d *Dashboard) SetLayout(tfLayout types.String) error {
 }
 
 func (d *Dashboard) SetWidgets(tfWidgets types.String) error {
+	if tfWidgets.IsNull() || tfWidgets.ValueString() == "" {
+		d.Widgets = []map[string]interface{}{}
+		return nil
+	}
 	var widgets []map[string]interface{}
 	err := json.Unmarshal([]byte(tfWidgets.ValueString()), &widgets)
 	if err != nil {
