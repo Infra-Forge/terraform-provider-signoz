@@ -1,6 +1,10 @@
 *.dll
 *.exe
 .DS_Store
+
+# Locally built provider binaries (release artifacts live on GitHub Releases).
+terraform-provider-signoz
+terraform-provider-signoz_*
 example.tf
 terraform.tfplan
 terraform.tfstate
